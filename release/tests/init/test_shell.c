@@ -10,7 +10,7 @@
 #include <driver/serial.h>
 #include <interrupts.h>
 
-extern bool run_cmd (char*);
+extern void run_cmd (char* cmd);
 
 
 
@@ -21,9 +21,7 @@ void test_shell_echo(){
     char cmd[1024];
     strcat(cmd, "echo");
     char* str = "hello world";
-    const char* _cmd = "echo hello world";
-    char buf[32]; strncpy(buf, _cmd, 32);
-    run_cmd(buf);
+    run_cmd("echo hello world");
     vga_entry_t* screen = vga_get_screen_buffer();
     int offset = (row) * VGA_WIDTH + 0;
     uint8_t colour = terminal_get_colour();
@@ -59,10 +57,7 @@ void test_shell_repeat_n(){
     char cmd[1024];
     strcat(cmd, "repeat 10 hello");
     char* str = "hello world";
-    const char* _cmd = "repeat 10 hello world";
-    char buf[32]; strncpy(buf, _cmd, 32);
-    run_cmd(buf);
-
+    run_cmd("repeat 10 hello world");
     vga_entry_t* screen = vga_get_screen_buffer();
     int offset = (row) * VGA_WIDTH + 0;
     uint8_t colour = terminal_get_colour();
@@ -91,16 +86,14 @@ void test_shell_text_colour() {
     terminal_move_cursor(col, row);
 
     // Set foreground to white
-    const char* cmd = "color white";
-    char buf[32]; strncpy(buf, cmd, 32);
-    run_cmd(buf);
+    run_cmd("color white");
 
     // Get current VGA color byte
     uint8_t color = terminal_get_colour(); // lower 4 bits = fg, upper 4 bits = bg
 
     uint8_t fg = color & 0x0F; // extract foreground
 
-    if (fg == 10) {
+    if (fg == 15) {
         send_msg("PASSED");
     } else {
         send_msg("FAILED");
@@ -117,16 +110,14 @@ void test_shell_bg_colour() {
     terminal_move_cursor(col, row);
 
     // Set foreground to white
-    const char* cmd = "bgcolor white";
-    char buf[32]; strncpy(buf, cmd, 32);
-    run_cmd(buf);
+    run_cmd("bgcolor white");
 
     // Get current VGA color byte
     uint8_t color = terminal_get_colour(); // lower 4 bits = fg, upper 4 bits = bg
 
     uint8_t bg = (color >> 4) & 0x0F; // extract foreground
 
-    if (bg == 8) {
+    if (bg == 15) {
         send_msg("PASSED");
     } else {
         send_msg("FAILED");

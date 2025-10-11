@@ -9,7 +9,7 @@
 #include <init/tty.h>
 #include <driver/serial.h>
 #include <interrupts.h>
-#include <proc/syscall.h>
+#include <init/syscall.h>
 
 
 void test_syscall_register(){

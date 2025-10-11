@@ -11,9 +11,9 @@ def test_shell_repeat(runner):
     result = runner.send_serial("shell_repeat")
     assert "PASSED*" == result
 
-# def test_shell_clear(runner):
-#     result =  runner.send_serial("shell_clear")
-#     assert "PASSED*" == result
+def test_shell_clear(runner):
+    result =  runner.send_serial("shell_clear")
+    assert "PASSED*" == result
 
 def  test_shell_colour(runner):
     result = runner.send_serial("shell_colour")

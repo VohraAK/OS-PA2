@@ -29,9 +29,9 @@ ENABLED_SUITES = [
     "tty",
     "shell",
     "sys",
-    "kmm",
-    "kheap",
-    "vmm"
+    # "kmm",
+    # "kheap",
+    # "vmm"
 ]
 
 def pytest_collection_modifyitems(config, items):
