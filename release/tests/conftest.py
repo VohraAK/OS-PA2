@@ -23,15 +23,15 @@ def pytest_configure(config):
 # CONFIGURE YOUR TEST SUITES HERE
 
 ENABLED_SUITES = [
-    "vga",
-    "interrupts",
-    "kbd",
-    "tty",
-    "shell",
-    "sys",
-    # "kmm",
-    # "kheap",
-    # "vmm"
+    # "vga",
+    # "interrupts",
+    # "kbd",
+    # "tty",
+    # "shell",
+    # "sys",
+    "kmm",
+    "kheap",
+    "vmm"
 ]
 
 def pytest_collection_modifyitems(config, items):

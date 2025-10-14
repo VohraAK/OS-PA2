@@ -21,42 +21,42 @@ static  char 	cmd_buf [CMD_BUF_SIZE];
 
 static struct test_case test_cases[] = {
 
-	{ "vga_entry", 				test_vga_entry },
-	{ "vga_cursor", 			test_vga_cursor },
-	{ "vga_entry_overwrite", 	test_vga_entry_overwrite },
-	{ "vga_color", 				test_vga_entry_colors },
-	{ "vga_entry_boundaries", 	test_vga_entry_boundaries },
+	// { "vga_entry", 				test_vga_entry },
+	// { "vga_cursor", 			test_vga_cursor },
+	// { "vga_entry_overwrite", 	test_vga_entry_overwrite },
+	// { "vga_color", 				test_vga_entry_colors },
+	// { "vga_entry_boundaries", 	test_vga_entry_boundaries },
 
-	{ "intr_reg", 				test_intr_reg },
-	{ "intr_unreg", 			test_intr_unreg },
-	{ "intr_unreg", 			test_intr_unreg },
-	{ "intr_multi", 			test_intr_multi },
+	// { "intr_reg", 				test_intr_reg },
+	// { "intr_unreg", 			test_intr_unreg },
+	// { "intr_unreg", 			test_intr_unreg },
+	// { "intr_multi", 			test_intr_multi },
 
-	{ "kbd_basic", 				test_kbd_basic },
-	{ "kbd_multi", 				test_kbd_multi },
-	{ "kbd_capslock", 			test_kbd_capslock },
-	{ "kbd_shift", 				test_kbd_shift },
+	// { "kbd_basic", 				test_kbd_basic },
+	// { "kbd_multi", 				test_kbd_multi },
+	// { "kbd_capslock", 			test_kbd_capslock },
+	// { "kbd_shift", 				test_kbd_shift },
 
-	// ---- TTY tests ----
-	{ "terminal_getc",          test_terminal_getc },
-	{ "terminal_read",          test_terminal_read },
-	{ "terminal_cursor",        test_terminal_cursor },
-	{ "terminal_clear",         test_terminal_clear },
-	{ "terminal_putc",          test_terminal_putc },
-	{ "terminal_write",         test_terminal_write },
-	{ "terminal_column",        test_terminal_column },
+	// // ---- TTY tests ----
+	// { "terminal_getc",          test_terminal_getc },
+	// { "terminal_read",          test_terminal_read },
+	// { "terminal_cursor",        test_terminal_cursor },
+	// { "terminal_clear",         test_terminal_clear },
+	// { "terminal_putc",          test_terminal_putc },
+	// { "terminal_write",         test_terminal_write },
+	// { "terminal_column",        test_terminal_column },
 
-	// ---- SYSCALL TESTS ----
-	{ "syscall_register",       test_syscall_register },
-	{ "syscall_read",       	test_syscall_read },
-	{ "syscall_write",       	test_syscall_write },
+	// // ---- SYSCALL TESTS ----
+	// { "syscall_register",       test_syscall_register },
+	// { "syscall_read",       	test_syscall_read },
+	// { "syscall_write",       	test_syscall_write },
 
-	// ---- SHELL
-	{ "shell_echo",				test_shell_echo },
-	{ "shell_repeat",			test_shell_repeat_n },
-	{ "shell_clear",			test_shell_clear },
-	{ "shell_colour",			test_shell_text_colour },
-	{ "shell_bgcolour",			test_shell_bg_colour },
+	// // ---- SHELL
+	// { "shell_echo",				test_shell_echo },
+	// { "shell_repeat",			test_shell_repeat_n },
+	// { "shell_clear",			test_shell_clear },
+	// { "shell_colour",			test_shell_text_colour },
+	// { "shell_bgcolour",			test_shell_bg_colour },
 
     // // ---- KHEAP tests ----
     // { "kheap_init",           	test_kheap_init },
@@ -75,16 +75,16 @@ static struct test_case test_cases[] = {
     // { "kheap_stress_pattern", 	test_kheap_stress_pattern },
 
     // // ---- KMM tests ----
-    // { "kmm_init_total",       	test_kmm_init_total },
-    // { "kmm_reserved",         	test_kmm_reserved_regions },
-    // { "kmm_alloc_all",        	test_kmm_alloc_all },
-    // { "kmm_alloc_align",      	test_kmm_alloc_alignment },
-    // { "kmm_reuse",            	test_kmm_reuse_freed },
-    // { "kmm_double_free",      	test_kmm_double_free },
-    // { "kmm_free_invalid",     	test_kmm_free_invalid },
-    // { "kmm_consistency",      	test_kmm_consistency },
-    // { "kmm_pattern",          	test_kmm_pattern_alloc_free },
-    // { "kmm_oom",              	test_kmm_oom },
+    { "kmm_init_total",       	test_kmm_init_total },
+    { "kmm_reserved",         	test_kmm_reserved_regions },
+    { "kmm_alloc_all",        	test_kmm_alloc_all },
+    { "kmm_alloc_align",      	test_kmm_alloc_alignment },
+    { "kmm_reuse",            	test_kmm_reuse_freed },
+    { "kmm_double_free",      	test_kmm_double_free },
+    { "kmm_free_invalid",     	test_kmm_free_invalid },
+    { "kmm_consistency",      	test_kmm_consistency },
+    { "kmm_pattern",          	test_kmm_pattern_alloc_free },
+    { "kmm_oom",              	test_kmm_oom },
 
     // // ---- VMM tests ----
 	// { "vmm_init",             	test_vmm_init },

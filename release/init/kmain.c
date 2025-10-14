@@ -8,6 +8,7 @@
 #include <init/tty.h>
 #include <init/syscall.h>
 #include <init/shell.h>
+#include <mm/kmm.h>
 
 #ifdef TESTING
 extern void start_tests ();
@@ -29,10 +30,14 @@ void kmain ()
 
 	/* Your implementation starts here */
 
+	// PA1
 	setup_x86_interrupts();
 	kbd_init();
 	tty_init();
 	syscall_init();
+	
+	// PA2
+	kmm_init();
 
 	/* Your implementation ends here */
 

@@ -14,6 +14,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
+#include <stdio.h>
+#include <log.h>
+#include <utils.h>
+#include <init/tty.h>
+#include <mem.h>
 
 //-----------------------------------------------------------------------------
 // 		INTERFACE DEFINES/TYPES
@@ -64,5 +70,31 @@ typedef struct {
 // 		INTERFACE FUNCTION PROTOTYPES
 //-----------------------------------------------------------------------------
 
+// macros
+// get total available memory on the system (in KB)
+#define AVLBL_MEM(memLow, memHigh) (1024 + (memLow) + (64* memHigh))
+
+
+// helper structs
+typedef struct
+{
+    uint32_t index;
+    uint32_t offset;
+
+} bitmap_frame_info_t;
+
+// helpers
+void kmm_get_available_mem(void);
+void kmm_get_physical_mem_map(void);
+void kmm_print_status(void);
+bitmap_frame_info_t kmm_get_first_free_bit(void);
+
+// API function declarations
+void kmm_init(void);
+uint32_t kmm_get_total_frames(void);
+uint32_t kmm_get_used_frames(void);
+void kmm_setup_memory_region(uint32_t base, uint32_t size, bool is_reserved);
+void* kmm_frame_alloc(void);
+void kmm_frame_free(void* phys_addr);
 
 #endif // !_KMM_H
