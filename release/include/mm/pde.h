@@ -30,4 +30,17 @@ typedef uint32_t pde_t;
 #define PDE_IS_4MB(pde)        ((pde) & PDE_SIZE_4MB)     // Check if the page is 4MB
 
 
+static inline pde_t _pde_create(void* phys_addr, uint32_t flags)
+{
+    // create first 20bit address part
+    pde_t addr_part = (pde_t)phys_addr & PDE_FRAME_MASK;
+
+    // create last 12bit flags part
+    pde_t flags_part = flags & ~PDE_FRAME_MASK;
+
+    // combination
+    return addr_part | flags_part;
+}
+
+
 #endif // _MM_PDE_H

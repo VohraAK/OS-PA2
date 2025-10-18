@@ -37,9 +37,9 @@ void kmm_get_physical_mem_map()
 
 void kmm_print_status(void)
 {
-    printf("Total memory: %u KB\n", available_size);
-    printf("Used frames: %u\n", used_frames);
-    printf("Free frames: %u\n", free_frames);
+    LOG_DEBUG("Total memory: %u KB\n", available_size);
+    LOG_DEBUG("Used frames: %u\n", used_frames);
+    LOG_DEBUG("Free frames: %u\n", free_frames);
     
 }
 
@@ -103,6 +103,9 @@ uint32_t kmm_get_used_frames(void)
 
 void kmm_init(void)
 {
+    LOG_DEBUG("------------------------------\n");
+    LOG_DEBUG("KMM INIT\n");
+
     kmm_get_available_mem();
     kmm_get_physical_mem_map();
 
@@ -124,10 +127,13 @@ void kmm_init(void)
     
     // compute end-of-bitmap address (unaligned)
     uint32_t bitmap_end_addr = bitmap_start_addr + (bitmap_size * sizeof(uint32_t));
-    
+
+    // ensure the bitmap end is block-aligned so reservation covers full frames
+    bitmap_end_addr = (uint32_t) ALIGN(bitmap_end_addr, _KMM_BLOCK_ALIGNMENT);
+
     // place bitmap right after kernel code and data (kernel_end)
     bitmap = (uint32_t*) PHYS_TO_VIRT(bitmap_start_addr);
-    
+
     // initialise bitmap
     // total space occupied (in bytes)
     memset(bitmap, (uint8_t)0xFF, bitmap_size * sizeof(uint32_t));
@@ -251,9 +257,23 @@ void kmm_init(void)
 
 void kmm_setup_memory_region(uint32_t base, uint32_t size, bool is_reserved)
 {
-    // check if this violates reserved region
-    if ((base + size) <= 0x100000)
-        return;
+    // don't modify the boot/reserved low-memory area when clearing regions
+    // const uint32_t reserved_end = 0x100000;
+
+    // if (!is_reserved)
+    // {
+    //     // If the entire region lies below reserved_end, nothing to do
+    //     if ((uint64_t)base + (uint64_t)size <= (uint64_t)reserved_end)
+    //         return;
+
+    //     // If region partially overlaps reserved area, adjust to skip the reserved portion
+    //     if (base < reserved_end)
+    //     {
+    //         uint32_t overlap = reserved_end - base;
+    //         base += overlap;
+    //         size -= overlap;
+    //     }
+    // }
 
     // convert offsets into a physical region
     uint64_t region_start = (uint64_t)ALIGN(base, _KMM_BLOCK_ALIGNMENT);
@@ -270,20 +290,24 @@ void kmm_setup_memory_region(uint32_t base, uint32_t size, bool is_reserved)
         // conditionally set frames
         if (is_reserved)
         {
-            // mark as used
-            bitmap[index] |= (1 << offset);
-            
-            free_frames -= 1;
-            used_frames += 1;
+            // only mark if currently free
+            if ((bitmap[index] & (1u << offset)) == 0) 
+            {
+                bitmap[index] |= (1 << offset);
+                free_frames -= 1;
+                used_frames += 1;
+            }
         }
 
         else
         {
-            // mark as free
-            bitmap[index] &= ~(1 << offset);
-
-            free_frames += 1;
-            used_frames -= 1;
+            // only free if currently used
+            if ((bitmap[index] & (1u << offset)) != 0) 
+            {
+                bitmap[index] &= ~(1 << offset);
+                free_frames += 1;
+                used_frames -= 1;
+            }
         }
 
     }
@@ -292,29 +316,36 @@ void kmm_setup_memory_region(uint32_t base, uint32_t size, bool is_reserved)
 
 void* kmm_frame_alloc(void)
 {
-    // get location of first free frame
+    // find first free frame
     bitmap_frame_info_t free_frame_info = kmm_get_first_free_bit();
 
-    // check for invalid values
+    // no free frames
     if (free_frame_info.index == (uint32_t) 0xFFFFFFFF)
         return NULL;
 
+    uint32_t frame_number = (free_frame_info.index * 32u) + free_frame_info.offset;
+
+    // // never return frame 0; if encountered, reserve it and continue searching
+    // if (frame_number == 0)
+    // {
+    //     // mark as used if not already
+    //     if ((bitmap[free_frame_info.index] & (1u << free_frame_info.offset)) == 0) 
+    //     {
+    //         bitmap[free_frame_info.index] |= (1u << free_frame_info.offset);
+    //         used_frames += 1;
+    //         free_frames -= 1;
+    //     }
+    // }
+
     // mark that frame as used
     bitmap[free_frame_info.index] |= (1u << free_frame_info.offset);
-    
+
     // update the usage counter
     used_frames += 1;
 
     // update the free counter
     free_frames -= 1;
-
-    // get frame number (bit number)
-    uint32_t frame_number = (free_frame_info.index * 32u) + free_frame_info.offset;
-
-    // check if frame 0 is not being returned
-    if (frame_number == 0)
-        return NULL;
-
+        
     // translate frame_number to physical address
     void* physical_addr = (void*) (frame_number * _KMM_BLOCK_SIZE);
 

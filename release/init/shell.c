@@ -21,7 +21,7 @@ dispatch_entry_t cmd_dispatch_table[NUM_CMD] =
 void shell(void)
 {
     // just to be safe
-    clear();
+    // clear();
 
     while (shell_active)
     {

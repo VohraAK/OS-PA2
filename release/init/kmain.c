@@ -9,6 +9,7 @@
 #include <init/syscall.h>
 #include <init/shell.h>
 #include <mm/kmm.h>
+#include <mm/vmm.h>
 
 #ifdef TESTING
 extern void start_tests ();
@@ -38,6 +39,7 @@ void kmain ()
 	
 	// PA2
 	kmm_init();
+	vmm_init();
 
 	/* Your implementation ends here */
 

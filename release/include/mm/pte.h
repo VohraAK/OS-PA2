@@ -38,4 +38,17 @@ typedef uint32_t pte_t;
 #define PTE_UNSET_DIRTY(pte)   ((pte) &= ~PTE_DIRTY)          // Unset the dirty flag
 
 
+static inline pte_t _pte_create(void* phys_addr, uint32_t flags)
+{
+    // create first 20bit address part
+    pte_t addr_part = (pte_t)phys_addr & PTE_FRAME_MASK;
+
+    // create last 12bit flags part
+    pte_t flags_part = flags & ~PTE_FRAME_MASK;
+
+    // combination
+    return addr_part | flags_part;
+}
+
+
 #endif // _MM_PTE_H

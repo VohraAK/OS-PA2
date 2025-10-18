@@ -42,7 +42,7 @@
 //! default logger logs to the terminal
 //  TODO: must add the support/flags for file level logs
 #ifndef     LOG_OUT
-#define     LOG_OUT(...)    printk(__VA_ARGS__)
+#define     LOG_OUT(...)    printf(__VA_ARGS__)
 #endif
 
 //! default colors for annotations
