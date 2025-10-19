@@ -9,6 +9,24 @@ static pagedir_t* _vmm_kernel_pagedir = NULL;
 
 // NOTE: page directories and tables MUST BE accessed through physmap
 
+// Helper function to validate physical frame address
+static inline bool _vmm_is_valid_frame(void* frame_phys)
+{
+    if (!frame_phys)
+        return false;
+    
+    // Check page alignment
+    if ((uintptr_t)frame_phys % VMM_PAGE_SIZE != 0)
+        return false;
+    
+    // Check bounds: frame must be within valid physical memory range
+    uint32_t max_phys_addr = kmm_get_total_frames() * VMM_PAGE_SIZE;
+    if ((uintptr_t)frame_phys >= max_phys_addr)
+        return false;
+    
+    return true;
+}
+
 void vmm_init(void)
 {
     LOG_DEBUG("------------------------------\n");
@@ -176,6 +194,7 @@ void vmm_create_pt(pagedir_t* pdir, void* virtual, uint32_t flags)
     *pde = new_entry;
 }
 
+
 // TODO: implement handler
 void _vmm_page_fault_handler(interrupt_context_t* ctx)
 {
@@ -184,6 +203,7 @@ void _vmm_page_fault_handler(interrupt_context_t* ctx)
     // while (1)
     //     asm volatile ("hlt" :::);
 }
+
 
 pagedir_t* vmm_get_kerneldir(void)
 {
@@ -233,6 +253,413 @@ void* vmm_get_phys_frame(pagedir_t* pdir, void* virtual)
     return frame_phys_addr;
 }
 
+int32_t vmm_page_alloc(pte_t* pte, uint32_t flags)
+{
+    // validate PTE pointer
+    // if PTE is present, return 0
+    if (!pte)
+    {
+        LOG_ERROR("vmm_page_alloc: PTE is NULL!\n");
+        return -1;
+    }
+    
+    // check if the entry already has an allocated frame
+    if (PTE_IS_PRESENT(*pte))
+    {
+        LOG_ERROR("vmm_page_alloc: PTE already present!\n");
+        return 0;
+    }
+
+    // allocate a new physical frame and create a PTE to reference it
+    void* frame_physical_addr = kmm_frame_alloc();
+
+    // check if OOM
+    if (!frame_physical_addr)
+    {
+        LOG_ERROR("vmm_page_alloc: Out of memory!\n");
+        return -1;
+    }
+
+    // create PTE for the frame
+    pte_t new_entry = _pte_create(frame_physical_addr, flags);
+
+    *pte = new_entry;
+
+    return 0;
+
+}
+
+void vmm_page_free(pte_t* pte)
+{
+    // validate PTE
+    if (!pte)
+    {
+        LOG_ERROR("vmm_page_free: PTE is NULL!\n");
+        return;
+    }
+
+    // check if PTE does not exist
+    if (!PTE_IS_PRESENT(*pte))
+    {
+        LOG_ERROR("vmm_page_free: PTE is not present!");
+        return;
+    }
+
+    // get physical frame address
+    void* frame_physical_addr = (void*)PTE_FRAME_ADDR(*pte);
+
+    if (!frame_physical_addr)
+        return;
+    
+    // bounds check
+    if ((uintptr_t)frame_physical_addr == 0)
+        return;
+    
+    // frame must be within valid physical memory range
+    uint32_t max_phys_addr = kmm_get_total_frames() * VMM_PAGE_SIZE;
+
+    if ((uintptr_t)frame_physical_addr >= max_phys_addr)
+        return;
+
+
+    // free in physical memory
+    kmm_frame_free(frame_physical_addr);
+
+    // mark as not present
+    *pte = (uint32_t)PTE_FRAME_ADDR(*pte) & (uint32_t)~PTE_PRESENT;
+
+}
+
+bool vmm_alloc_region(pagedir_t* pdir, void* virtual, size_t size, uint32_t flags)
+{
+    // validate parameters
+    if (!pdir || !virtual)
+    {
+        LOG_ERROR("vmm_alloc_region: Param(s) are NULL!\n");
+        return false;
+    }
+
+    if (size == 0)
+    {
+        LOG_ERROR("vmm_alloc_region: Size of region is zero!\n");
+        return false;
+    }
+
+    // compute starting and ending addresses
+    // uintptr_t start_addr = (uintptr_t) ALIGN((uintptr_t)virtual, VMM_PAGE_SIZE);
+
+    // this janky thing works for now
+    uintptr_t start_addr = ((uintptr_t)virtual) & ~(VMM_PAGE_SIZE - 1);
+    uintptr_t end_addr = (uintptr_t) ALIGN((uintptr_t)virtual + size, VMM_PAGE_SIZE);
+
+    // iterate through addr
+    for (uintptr_t addr = start_addr; addr < end_addr; addr += VMM_PAGE_SIZE)
+    {
+        // for each addr:
+        // 1) get page table address (create if not found)
+        // 2) allocate frame
+        // 3) set PTE
+
+        // get pagedir entry
+        uint32_t pagedir_i = VMM_DIR_INDEX(addr);
+
+        // get PDE
+        pde_t pde = pdir->table[pagedir_i];
+
+        // check if a page table is present
+        if (!PDE_IS_PRESENT(pde))
+        {
+            // create a page table
+            vmm_create_pt(pdir, (void*)addr, PDE_PRESENT | PDE_WRITABLE);
+
+            // recheck pde at pagedir_i
+            pde = pdir->table[pagedir_i];
+
+            // check if allocation failed
+            if (!PDE_IS_PRESENT(pde))
+            {
+                LOG_ERROR("vmm_alloc_region: failed to allocate page table!\n");
+                return false;
+            }
+        }
+
+        // from PDE, get address of ptable
+        uint32_t pagetable_phys_addr = PDE_PTABLE_ADDR(pde); 
+
+        pagetable_t* ptable = (pagetable_t*) PHYS_TO_VIRT(pagetable_phys_addr);
+
+        // find page table entry
+        uint32_t pagetable_i = VMM_TABLE_INDEX(addr);
+
+        pte_t* pte = &(ptable->table[pagetable_i]);
+
+        // check if this frame is already allocated
+        if (PTE_IS_PRESENT(*pte))
+            continue;   // skip
+
+
+        // allocate a frame
+        void* frame_physical_addr = kmm_frame_alloc();
+
+        // validate
+        if (!frame_physical_addr)
+        {
+            LOG_ERROR("vmm_alloc_region: Alloc faliure!\n");
+            return false;
+        }
+
+        // assign to ptable
+        pte_t new_entry = _pte_create(frame_physical_addr, flags);
+
+        *pte = new_entry;
+
+    }
+
+    // great success
+    return true;
+
+}
+
+bool vmm_free_region(pagedir_t* pdir, void* virtual, size_t size)
+{
+    // built on vibes...
+
+    // validate parameters
+    if (!pdir || !virtual)
+    {
+        LOG_ERROR("vmm_free_region: Invalid parameter(s)!\n");
+        return false;
+    }
+
+    if (size == 0)
+    {
+        LOG_ERROR("vmm_free_region: Size is zero!\n");
+        return false;
+    }
+
+    // compute start and end addr
+    uintptr_t start_addr = (uintptr_t) ALIGN((uintptr_t)virtual, VMM_PAGE_SIZE);
+    uintptr_t end_addr = (uintptr_t) ALIGN((uintptr_t)virtual + size, VMM_PAGE_SIZE);
+
+    uint32_t start_pd_index = VMM_DIR_INDEX(start_addr);
+    uint32_t end_pd_index = VMM_DIR_INDEX(end_addr - 1);
+
+    // iterate through each page in the region
+    for (uintptr_t addr = start_addr; addr < end_addr; addr += VMM_PAGE_SIZE)
+    {
+        // get page directory index
+        uint32_t pagedir_i = VMM_DIR_INDEX(addr);
+        pde_t pde = pdir->table[pagedir_i];
+
+        // skip if page table doesn't exist
+        if (!PDE_IS_PRESENT(pde))
+            continue;
+
+        // get the page table
+        uint32_t pagetable_phys_addr = PDE_PTABLE_ADDR(pde);
+        pagetable_t* ptable = (pagetable_t*)PHYS_TO_VIRT(pagetable_phys_addr);
+
+        // get page table index
+        uint32_t pagetable_i = VMM_TABLE_INDEX(addr);
+        pte_t* pte = &(ptable->table[pagetable_i]);
+
+        // check if page is present
+        if (!PTE_IS_PRESENT(*pte))
+            continue;   // skip
+
+        // get physical frame address
+        void* frame_phys = (void*)PTE_FRAME_ADDR(*pte);
+
+        // free the frame
+        if (frame_phys)
+            kmm_frame_free(frame_phys);
+
+        // clear the page table entry
+        *pte = 0;
+
+        // invalidate TLB entry
+        flush_tlb((void*)addr);
+    }
+
+    // check for empty page tables and free them
+    bool freed_any_pt = false;
+    for (uint32_t pd_index = start_pd_index; pd_index <= end_pd_index; pd_index++)
+    {
+        pde_t pde = pdir->table[pd_index];
+
+        // skip if page table doesn't exist
+        if (!PDE_IS_PRESENT(pde))
+            continue;
+
+        // get the page table
+        uint32_t pagetable_phys_addr = PDE_PTABLE_ADDR(pde);
+        pagetable_t* ptable = (pagetable_t*) PHYS_TO_VIRT(pagetable_phys_addr);
+
+        // check if page table is completely empty
+        bool is_empty = true;
+        for (uint32_t i = 0; i < VMM_PAGES_PER_TABLE; i++)
+        {
+            if (PTE_IS_PRESENT(ptable->table[i]))
+            {
+                is_empty = false;
+                break;
+            }
+        }
+
+        // if empty, free the page table
+        if (is_empty)
+        {
+            LOG_DEBUG("vmm_free_region: Freeing empty page table at PD index %u\n", pd_index);
+
+            // free page table frame
+            kmm_frame_free((void*)pagetable_phys_addr);
+
+            // clear the page directory entry
+            pdir->table[pd_index] = 0;
+            freed_any_pt = true;
+        }
+    }
+
+    // great success
+    return true;
+}
+
+pagetable_t* vmm_clone_pagetable(pagetable_t* src)
+{
+    // check null
+    if (!src)
+        return NULL;
+
+    // must be page-aligned (4KB)
+    uintptr_t src_virt = (uintptr_t)src;
+
+    if (src_virt & (VMM_PAGE_SIZE - 1))
+        return NULL;
+
+    // page tables must be accessed via physmap
+    if (src_virt < PHYSMAP_BASE)
+        return NULL;
+
+    // check bounds of physical frame
+    uintptr_t src_physical_addr = (uintptr_t)VIRT_TO_PHYS(src);
+    if (src_physical_addr >= kmm_get_total_frames() * VMM_PAGE_SIZE);
+        return NULL;
+
+
+    // allocate a new physical frame
+    void* new_frame_phys_addr = kmm_frame_alloc();
+
+    if (!new_frame_phys_addr)
+    {
+        LOG_ERROR("vmm_clone_pagetable: Alloc failed! (ptable)\n");
+        return NULL;
+    }
+
+    // convert to virtual
+    pagetable_t* cloned_ptable = (pagetable_t*) PHYS_TO_VIRT(new_frame_phys_addr);
+
+    // clear it
+    memset(cloned_ptable, 0, sizeof(pagetable_t));
+
+    // iterate over all pages in the table
+    for (uint32_t page = 0; page < VMM_PAGES_PER_TABLE; page++)
+    {
+        // get each entry in src
+        pte_t pte = src->table[page];
+
+        // check if present
+        if (!PTE_IS_PRESENT(pte))
+            continue;   // skip
+
+        // allocate a new physical frame for the data
+        void* new_page_phys_addr = kmm_frame_alloc();
+
+        if (!new_page_phys_addr)
+        {
+            LOG_ERROR("vmm_clone_pagetable: Alloc failed! (page)\n");
+            break;  // stop cloning
+        }
+
+        // get original flags
+        uint32_t src_flags = PTE_FLAGS(pte);
+
+        // get virtuals
+        void* src_virt_addr = PHYS_TO_VIRT((void*)PTE_FRAME_ADDR(pte));
+        void* dst_virt_addr = PHYS_TO_VIRT(new_frame_phys_addr);
+
+        // copy
+        memcpy(dst_virt_addr, src_virt_addr, VMM_PAGE_SIZE);
+
+        // create new entry for cloned table (same flags)
+        pte_t new_entry = _pte_create(new_page_phys_addr, src_flags);
+
+        cloned_ptable->table[page] = new_entry;
+    }
+
+    return cloned_ptable;
+}
+
+// ...existing code...
+pagedir_t* vmm_clone_pagedir(void)
+{
+    // built on vibes...
+
+    // get current and kernel pagedirs
+    // mutuallu exclusive options
+    pagedir_t* curr = vmm_get_current_pagedir();
+    pagedir_t* kdir = vmm_get_kerneldir();
+
+    if (!curr)
+        return NULL;
+
+    // create a new empty page directory
+    pagedir_t* newdir = vmm_create_address_space();
+
+    if (!newdir)
+        return NULL;
+
+    // iterate through all PDEs
+    for (uint32_t i = 0; i < 1024; i++)
+    {
+        pde_t src_pde = curr->table[i];
+
+        // skip not-present entries
+        if (!PDE_IS_PRESENT(src_pde))
+            continue;
+
+        // if kernel mapping, shallow copy page table
+        if (PDE_IS_PRESENT(kdir->table[i]) && PDE_PTABLE_ADDR(kdir->table[i]) == PDE_PTABLE_ADDR(src_pde))
+            // copy src pde
+            newdir->table[i] = src_pde;
+
+        else
+        {
+            // user mapping branch
+            uint32_t src_pt_phys = PDE_PTABLE_ADDR(src_pde);
+            pagetable_t* src_pt = (pagetable_t*)PHYS_TO_VIRT(src_pt_phys);
+
+            // clone page table
+            pagetable_t* cloned_pt = vmm_clone_pagetable(src_pt);
+
+            if (!cloned_pt)
+            {
+                LOG_ERROR("vmm_clone_pagedir: failed to clone PT at PDE %u\n", i);
+                return NULL;
+            }
+
+            // preserve flags
+            uint32_t pde_flags = PDE_FLAGS(src_pde);
+            pde_t new_pde = _pde_create(VIRT_TO_PHYS(cloned_pt), pde_flags);
+
+            // assign new pde
+            newdir->table[i] = new_pde;
+        }
+    }
+
+    return newdir;
+}
+
+
 // helpers
 bool vmm_switch_pagedir(pagedir_t* new_pagedir)
 {
@@ -266,6 +693,10 @@ void vmm_read_cr3(void)
     
 }
 
+static inline void flush_tlb(void* virt)
+{
+    asm volatile("invlpg (%0)" :: "r"(virt) : "memory");
+}
 
 
 #endif

@@ -79,10 +79,18 @@ void vmm_map_page(pagedir_t* pdir, void* virtual, void* physical, uint32_t flags
 pagedir_t* vmm_get_kerneldir(void);
 pagedir_t* vmm_get_current_pagedir(void);
 void* vmm_get_phys_frame(pagedir_t* pdir, void* virtual);
+int32_t vmm_page_alloc(pte_t* pte, uint32_t flags);
+void vmm_page_free(pte_t* pte);
+bool vmm_alloc_region(pagedir_t* pdir, void* virtual, size_t size, uint32_t flags);
+bool vmm_free_region(pagedir_t* pdir, void* virtual, size_t size);
+pagetable_t* vmm_clone_pagetable(pagetable_t* src);
+pagedir_t* vmm_clone_pagedir(void);
+
 
 // helpers
 bool vmm_switch_pagedir(pagedir_t* pagedir);
 void vmm_read_cr3(void);
+static inline void flush_tlb(void* virt);
 
 //*****************************************************************************
 //**
