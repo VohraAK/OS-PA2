@@ -10,6 +10,7 @@
 #include <init/shell.h>
 #include <mm/kmm.h>
 #include <mm/vmm.h>
+#include <mm/kheap.h>
 
 #ifdef TESTING
 extern void start_tests ();
@@ -22,6 +23,8 @@ static void hlt ();			//! halts the CPU and disables interrupts
 
 //! helper to zero out the BSS section
 static void zero_bss ();
+
+extern heap_t 		kernel_heap;
 
 void kmain () 
 {
@@ -40,6 +43,7 @@ void kmain ()
 	// PA2
 	kmm_init();
 	vmm_init();
+	kheap_init (&kernel_heap, (void*)KERNEL_HEAP_VIRT, KERNEL_HEAP_SIZE, KERNEL_HEAP_SIZE, true, false);
 
 	/* Your implementation ends here */
 
